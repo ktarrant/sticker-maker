@@ -25,8 +25,8 @@ The code uses a `src/` layout and is installed as a package into the project env
 ## Capture probe status
 
 - UV installed `gphoto2` 2.6.4 successfully on this Mac.
-- With direct USB access, libgphoto2 detects one `USB PTP Class Camera` at `usb:001,003`; macOS identifies that USB device as `ILCE-6000`.
-- Opening the PTP device currently fails with `Could not claim the USB device`, so capture control is not confirmed yet. The next check is the camera's `USB Connection` setting (`PC Remote`) and whether macOS or another app is holding the PTP interface.
+- With the camera set to PC Remote, libgphoto2 detects `Sony Alpha-A6000 (Control)` at `usb:001,003` and successfully reads its summary as `ILCE-6000`, including Sony PTP extensions.
+- The device summary advertises Sony capture support. A shutter capture and image download have not yet been exercised.
 
 ## Project plan
 
