@@ -9,7 +9,9 @@ description = "Turn overhead photos of physical media into Cricut-ready sticker 
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Sticker Maker Project" }]
-dependencies = []
+dependencies = [
+    "gphoto2>=2.6.4",
+]
 
 [project.scripts]
 sticker-maker = "sticker_maker.cli:main"

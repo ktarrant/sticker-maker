@@ -2,14 +2,14 @@
 
 A local Python project for turning overhead photos of printed media into sticker cut paths for a Cricut Maker 4.
 
-The project is at its setup stage. The camera is currently visible to macOS as a Sony **ILCE-6000** over USB. Sony lists the ILCE-6000 as supported by Imaging Edge Desktop, and Cricut Design Space accepts SVG vector uploads. This makes a practical first version possible without depending on undocumented camera or cutter protocols:
+The project is at its setup stage. The camera is currently visible to macOS as a Sony **ILCE-6000** over USB. Sony lists the ILCE-6000 as supported by Imaging Edge Desktop, and Cricut Design Space accepts SVG vector uploads. The project includes the `gphoto2` Python binding for direct camera capture; Imaging Edge Desktop remains a fallback capture path:
 
-1. Capture a photo to a watched folder using Sony Imaging Edge Desktop (Remote).
+1. Trigger a capture through libgphoto2 and retrieve the image directly into the Python workflow.
 2. Rectify the photo against a Cricut mat reference and let a person review proposed sticker regions.
 3. Export reviewed cut paths as a correctly scaled SVG.
 4. Import the SVG into Cricut Design Space and send it to the Maker 4.
 
-The first milestone should validate the complete physical workflow and time the capture-to-preview path. Direct camera control and direct cutter control are separate later investigations; the supported Sony Remote and Cricut Design Space workflow is the baseline.
+The first milestone should validate the complete physical workflow and time the capture-to-preview path. Direct cutter control is a separate later investigation; Cricut Design Space is the baseline machine handoff.
 
 ## Setup
 
@@ -20,13 +20,19 @@ uv sync
 uv run sticker-maker --help
 ```
 
-The code uses a `src/` layout and is installed as a package into the project environment. Raw photos and generated files belong under the ignored `data/` and `output/` directories.
+The code uses a `src/` layout and is installed as a package into the project environment. `uv sync` also installs the Python gphoto2 binding and its bundled libgphoto2 wheel on supported macOS/Python combinations. Raw photos and generated files belong under the ignored `data/` and `output/` directories.
+
+## Capture probe status
+
+- UV installed `gphoto2` 2.6.4 successfully on this Mac.
+- With direct USB access, libgphoto2 detects one `USB PTP Class Camera` at `usb:001,003`; macOS identifies that USB device as `ILCE-6000`.
+- Opening the PTP device currently fails with `Could not claim the USB device`, so capture control is not confirmed yet. The next check is the camera's `USB Connection` setting (`PC Remote`) and whether macOS or another app is holding the PTP interface.
 
 ## Project plan
 
 ### 1. Prove capture and physical setup
 
-- Install and open Sony Imaging Edge Desktop (Remote); select the ILCE-6000's USB PC Remote mode and confirm a shutter capture arrives in a chosen local folder.
+- Set the ILCE-6000's USB Connection mode to PC Remote and verify gphoto2 can open it, trigger a capture, and retrieve the image. If USB access remains unavailable, use Sony Imaging Edge Desktop (Remote) to save captures into a watched folder while investigating the PTP access issue.
 - Fix the camera directly above the mat, lock focus/exposure/white balance, and use even diffuse lighting to limit glare and shadows.
 - Photograph the empty mat and a test sheet with known dimensions. Record camera, lens/zoom, height, orientation, mat type, and image settings.
 - Measure capture-to-file and capture-to-preview latency. If Sony Remote's saved-file workflow is too slow, compare USB tethering alternatives only after confirming model and macOS support.
@@ -59,7 +65,7 @@ The code uses a `src/` layout and is installed as a package into the project env
 
 ## Initial architecture
 
-- `capture`: watch/import photos saved by Sony Imaging Edge Remote; keep camera integration behind an adapter.
+- `capture`: control the camera through the gphoto2 Python binding; provide a watched-folder adapter for Imaging Edge Remote as a fallback.
 - `calibration`: mat detection, perspective correction, and pixel-to-mm transform.
 - `segmentation`: candidate detection and human edits.
 - `geometry`: contour cleanup, offsets, and physical constraints.
