@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Sticker Maker Project" }]
 dependencies = [
     "gphoto2>=2.6.4",
+    "numpy>=2.0",
     "pillow>=11.0",
 ]
 

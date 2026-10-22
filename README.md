@@ -31,6 +31,18 @@ Capture works independently. Sticker-region parsing, Cricut export, and the comb
 
 Keep local photos under `data/` and generated jobs under `output/`; both directories are ignored by Git.
 
+## Calibration without a camera
+
+Fit and exercise a saved profile using the synthetic reference fixture:
+
+```sh
+uv run sticker-maker calibration fit tests/fixtures/calibration-references.json --output output/calibration/synthetic.json
+uv run sticker-maker calibration map output/calibration/synthetic.json --points '[[3000,2000]]'
+uv run sticker-maker calibration inspect output/calibration/synthetic.json
+```
+
+The example maps the image point to approximately `[150, 100]` millimeters. It tests the software; real rig calibration still needs measured references after the mounts are installed. See the [calibration contract](docs/calibration.md) for profile fields and API usage.
+
 Run automated tests without a camera:
 
 ```sh

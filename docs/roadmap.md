@@ -5,6 +5,7 @@
 - Capture is implemented as an independent Python service and CLI, with camera detection, settings inspection, direct shutter/download, image validation, saved manifests, locking, and deadlines. Automated tests cover success and failure contracts without hardware.
 - The final A6000 capture downloaded and decoded at 6000 × 4000 in 3.86 seconds, including connection and settings restoration. This is an initial measurement, not a sustained latency guarantee. Validated stack: macOS 15.6.1, Python gphoto2 2.6.4, libgphoto2 2.5.34, Pillow 13.0.0.
 - A hardware test used 1/125 second, ISO 400, Daylight white balance, and manual focus, then independently confirmed restoration of all original settings. Changing/restoring exposure settings took 22.92 seconds; keep a fixed exposure profile in production. Aperture writes failed confirmation despite advertised writability; the physical mode dial is read-only. Keep aperture/mode setup manual.
+- Calibration interfaces work without a camera: fit/save/load planar profiles, map pixels ↔ millimeters, match image/rig context, and report independent errors. Synthetic profiles are kept distinct from source-bound measured profiles. Lens correction and real rig/cutter accuracy remain to be validated after installation; see the [calibration contract](calibration.md).
 - `data/examples/DSC06487.JPG` is the user's handheld 6000 × 4000 example for independent parsing development. Production images will use a static top-down mount and LED array fill. Use the label/icon panels as initial proposals and the headline to test grouping; this sample does not establish final rig quality.
 - Parsing, Cricut export, and the combined GUI are not implemented. Segmentation quality, calibrated scale, and physical cut alignment remain unmeasured.
 
@@ -19,7 +20,7 @@ Capture is ready to support parsing development. Parsing is the next milestone a
 | 3 | Combined desktop GUI | Compose the same phase APIs in one capture → review → export flow, retaining standalone commands and tests. |
 | 4 | Calibrate and validate the production rig and sticker stack | Establish the final lens profile and mat mapping with the mounted camera/LED fill; validate center/edge alignment over at least 10 mat reloads, then cut one sticker and a sheet. |
 
-Longer capture runs and real idle/wake, disconnect, and timeout recovery checks remain reliability follow-up work; they do not block parsing development. Calibration interfaces and geometry can be tested with fixtures now, while final rig accuracy waits for the mounts.
+Longer capture runs and real idle/wake, disconnect, and timeout recovery checks remain reliability follow-up work; they do not block parsing development. Calibration contracts and geometry have synthetic test coverage; final rig accuracy waits for the mounts.
 
 The simple registration experiment can start before the final camera mount arrives. Repeat full-system measurements after installing the rig. A stable systematic offset may be compensable; variation between loads cannot be fixed with one constant correction.
 

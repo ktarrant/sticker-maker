@@ -31,7 +31,7 @@ Optional shutter/ISO/white-balance overrides and manual focus validate camera wr
 
 ## Coordinates and physical registration
 
-Calibration is a reusable module shared by parsing and export. Keep its profiles separate from capture so saved photos can be processed independently. Build/test the interface and geometry with fixtures now; establish and validate the production lens profile and mat mapping once the fixed mount and LED array are installed.
+The camera-independent `calibration` module implements planar fitting, saved profiles, bidirectional coordinate mapping, image-context matching, and independent error checks. Its [profile/API contract](calibration.md) is shared by parsing and export. Synthetic tests establish the software behavior; production lens correction and physical mat/cutter accuracy await the fixed mount and LED array.
 
 Use millimeters with the origin at a measured point on the usable adhesive grid, X right and Y toward the trailing edge in the selected loading orientation. Distinguish the grid from the outer plastic boundary. Use asymmetric references, estimate mat pose per capture, and measure error on independent points beyond those used to fit the transform.
 

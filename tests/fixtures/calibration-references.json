@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "rig_id": "synthetic-overhead-example",
+  "reference_kind": "synthetic",
+  "image_size_px": [6000, 4000],
+  "mat_size_mm": [300, 200],
+  "exif_orientation": 1,
+  "pixel_space": "raw",
+  "max_error_mm": 0.25,
+  "reference_points": [
+    {"image_px": [1500, 1000], "mat_mm": [0, 0]},
+    {"image_px": [4500, 1000], "mat_mm": [300, 0]},
+    {"image_px": [4500, 3000], "mat_mm": [300, 200]},
+    {"image_px": [1500, 3000], "mat_mm": [0, 200]}
+  ],
+  "check_points": [
+    {"image_px": [2000, 1500], "mat_mm": [50, 50]},
+    {"image_px": [4000, 1500], "mat_mm": [250, 50]},
+    {"image_px": [3000, 2500], "mat_mm": [150, 150]}
+  ]
+}
