@@ -27,9 +27,65 @@ uv run sticker-maker capture --manual-focus --set shutterspeed=1/125 --set iso=4
 
 Supported overrides are shutter speed, ISO, and white balance. Aperture and the physical mode dial currently require manual setup. Overrides are restored during cleanup; check settings after a forced timeout or restoration warning.
 
-Capture works independently. Sticker-region parsing, Cricut export, and the combined GUI are planned.
+Capture, parsing/review, and SVG export work independently. An initial desktop GUI combines them; physical cut placement still needs validation with the mounted rig.
 
 Keep local photos under `data/` and generated jobs under `output/`; both directories are ignored by Git.
+
+## Review sticker regions
+
+Install the desktop extra and open an existing image or saved review job; no camera is needed:
+
+```sh
+uv sync --extra gui
+uv run --extra gui sticker-maker review data/examples/DSC06487.JPG
+```
+
+Draw a **Work area** around the paper, then click **Propose regions**. Amber outlines are suggestions; select one and click **Use selected** to include it. Cyan shows included outlines and green shows the resulting cut paths. Scroll to zoom, choose **Pan** to move the view, and use Shift/Cmd for multiple selections.
+
+The tool selector offers rectangles, polygons (Enter/double-click to finish), freehand drawing, vertex editing, brushes, and splitting. **Group** retains separate stickers; **Union** combines outlines; **One backing** creates an enclosing rectangle around disconnected artwork. Adjust borders, units, corners, simplification, and inner cuts in the inspector. Undo/redo works across edits, and jobs autosave under `output/jobs/`. Reopen their `regions.json` to resume. **Save as** preserves a separate version.
+
+Without calibration, use `px` to preview border changes. Millimeter values remain pending until a compatible calibration is loaded. **Mark reviewed** records content review; **Approve paths for export** additionally requires a source-bound measured calibration with passing checks and valid geometry.
+
+The GUI's **Capture** button uses the same gphoto2 service and temporary manual-focus behavior as `capture --manual-focus`, then proposes regions. Keep the camera connected until transfer finishes. The camera mode/aperture setup above still applies.
+
+For standalone parsing and previews:
+
+```sh
+uv run --extra parser sticker-maker parse data/examples/DSC06487.JPG --work-area 1900 1400 3400 3100 --output output/example/regions.json
+uv run sticker-maker regions inspect output/example/regions.json
+uv run sticker-maker regions preview output/example/regions.json --output output/example/review.png
+```
+
+`regions edit --help` describes scripted JSON edits. Existing jobs are preserved; choose a new `parse --output` or open the saved job instead.
+
+## Optional AI selection
+
+SAM 2.1 Small adds box selection and foreground/background correction clicks. Install its optional dependencies and download Meta's weights once:
+
+```sh
+SAM2_BUILD_CUDA=0 uv sync --extra gui --extra sam
+mkdir -p output/models
+curl -fL https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt -o output/models/sam2.1_hiera_small.pt
+uv run --extra gui --extra sam sticker-maker review data/examples/DSC06487.JPG
+```
+
+The default weights path is detected automatically; **AI model** chooses another Small/Tiny checkpoint. **AI box** proposes a new region. **AI include/exclude** refines the selected region with clicks. Results are alternatives: **Use selected / accept refinement** explicitly replaces the prior selection, preserving its border settings. Ordinary use works offline after setup. Analysis can be cancelled while manual editing remains available.
+
+The standalone `sam refine` command saves a proposal to an existing job. `sam benchmark --help` compares Small and Tiny using separately downloaded checkpoints; see the [parser contract and measurements](docs/parser.md).
+
+## Export reviewed cuts
+
+Load the measured profile using the GUI or `regions calibrate`, mark selected regions reviewed, then approve and export:
+
+```sh
+uv run sticker-maker regions calibrate output/example/regions.json output/calibration/measured.json
+uv run sticker-maker regions approve output/example/regions.json
+uv run sticker-maker export output/example/regions.json --output output/example/cuts.svg
+```
+
+`measured.json` must come from actual reference measurements for that image; the synthetic fixture below cannot authorize physical cuts. Review any geometry warnings before acknowledging them. Source, outline, recipe, or calibration changes invalidate export approval.
+
+Export creates the SVG and `cuts.placement.json`. Import into Cricut Design Space as **Basic Cut**, verify dimensions, **Attach** the shapes, and establish the absolute mat placement using the placement report and your validated loading procedure. Keep the original sheet on the same mat. The software does not directly operate the cutter or establish blade alignment; validate with a pen/scrap first.
 
 ## Calibration without a camera
 
@@ -47,6 +103,12 @@ Run automated tests without a camera:
 
 ```sh
 uv run python -m unittest discover -s tests -v
+```
+
+Install the parser/GUI extras to include their optional tests. A cached-model GUI integration test can also run without a camera:
+
+```sh
+STICKER_MAKER_SAM_CHECKPOINT="$PWD/output/models/sam2.1_hiera_small.pt" uv run --extra gui --extra sam python -m unittest discover -s tests -p test_review.py -v
 ```
 
 ## Documentation

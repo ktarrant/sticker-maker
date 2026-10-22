@@ -23,7 +23,7 @@ Saved profiles retain the inputs plus the 3×3 `image_to_mat` matrix, a content-
 ## Shared API
 
 - `fit_calibration(reference_data)` creates a profile from the input dictionary.
-- `profile.save(path)` and `load_calibration(path)` persist/reload it.
+- `profile.save(path)` and `load_calibration(path)` persist/reload it. `calibration_from_dict(data)` performs the same fingerprint/validation checks for profiles embedded in region documents.
 - `profile.assert_compatible(...)` checks image size, orientation, rig, pixel space, lens profile, and source identity. Parsing/export consumers must call it before applying a profile to an image artifact.
 - `profile.pixels_to_mm(points)` and `profile.mm_to_pixels(points)` map point arrays, including polygon vertices. They are geometry operations, not approval or bounds checks for cut jobs.
 - `profile.validation` reports `not_checked`, `failed`, or `passed`, with independent RMS/maximum error in millimeters.

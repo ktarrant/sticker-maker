@@ -258,10 +258,9 @@ def fit_calibration(document: dict) -> CalibrationProfile:
         raise CalibrationError("Reference geometry could not be solved.") from exc
 
 
-def load_calibration(path: Path) -> CalibrationProfile:
-    """Load a profile, recheck its fingerprint, and recompute validation metrics."""
+def calibration_from_dict(document: dict) -> CalibrationProfile:
+    """Recheck a serialized profile, including profiles embedded in review jobs."""
     try:
-        document = json.loads(Path(path).read_text())
         data = _profile_data(document)
         matrix = tuple(tuple(float(v) for v in row) for row in document["image_to_mat"])
         profile = CalibrationProfile(**data, image_to_mat=matrix)
@@ -270,3 +269,8 @@ def load_calibration(path: Path) -> CalibrationProfile:
         return profile
     except (KeyError, TypeError, ValueError) as exc:
         raise CalibrationError(f"Invalid calibration profile: {exc}") from exc
+
+
+def load_calibration(path: Path) -> CalibrationProfile:
+    """Load a profile, recheck its fingerprint, and recompute validation metrics."""
+    return calibration_from_dict(json.loads(Path(path).read_text()))

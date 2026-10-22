@@ -1,94 +1,91 @@
-# Parser and review strategy
+# Parser and review
 
-This is the implementation strategy; recognition, editing, and export are not implemented yet. Parsing must work on saved images without a camera or final rig calibration. The review editor belongs in this milestone so interaction can guide parser development; the combined capture-to-export application comes later.
+The parser, reversible editor, optional SAM selection, and approved-path SVG export are implemented. The desktop GUI composes these with the existing gphoto2 capture service; each phase also works independently. See the [README](../README.md#review-sticker-regions) for installation and commands. No camera is needed for parsing, editing, calibration interfaces, or export.
 
 ## Recognition choice
 
-Start with **SAM 2.1 Hiera Small for interactive segmentation**, **OpenCV for simple proposals and contour extraction**, and **Shapely for cut geometry**. This is a fit recommendation, not a measured quality or speed result. Benchmark Small against Tiny on the available Apple M4 with 16 GB memory before fixing the default checkpoint.
+**SAM 2.1 Hiera Small** is the initial interactive backend, with **OpenCV** for quick panel proposals and **Shapely** for deterministic cut geometry. This choice has an initial laptop experiment behind it, not a representative quality benchmark.
 
-| Option | Fit and decision |
+| Tool | Responsibility and evidence |
 | --- | --- |
-| SAM 2.1 | Its [image predictor](https://github.com/facebookresearch/sam2/blob/main/sam2/sam2_image_predictor.py) caches image features and accepts foreground/background points, a box, and previous mask predictions. These map directly to adding and correcting selections. Use as the initial recognition backend. |
-| OpenCV alone | [Contours, connected components, and polygon approximation](https://docs.opencv.org/4.x/d3/dc0/group__imgproc__shape.html) suit framed labels and provide a cheap baseline. Use for quick first proposals and full-resolution edge processing; evaluate its limits on irregular artwork. |
-| SAM 3 / 3.1 | [Text/exemplar concept selection](https://github.com/facebookresearch/sam3) is attractive for future discovery. The official setup currently requires CUDA and checkpoint access approval; [Apple/CPU support is still an open contribution](https://github.com/facebookresearch/sam3/pull/627). Its deployment cost makes it a poorer initial fit for this Mac. Keep recognition replaceable. |
+| SAM 2.1 | Its [image predictor](https://github.com/facebookresearch/sam2/blob/main/sam2/sam2_image_predictor.py) supports box/foreground/background prompts and cached features. The adapter caches full-resolution crop features, retains prior mask logits for additional clicks, and saves mask/prompt/checkpoint provenance. |
+| OpenCV | [Contours and polygon approximation](https://docs.opencv.org/4.x/d3/dc0/group__imgproc__shape.html) supply bounded panel proposals from a smaller processing image, with transforms back to the primary raster. Interior-variation filtering reduces empty mat-grid proposals; duplicates are suppressed while useful nested alternatives remain. |
+| Shapely | Pixel-cell boundary tracing preserves holes, isolated pixels, and diagonal contacts without invalid contour repairs. [Buffers](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html), booleans, and bounded simplification produce cut paths. |
 
-SAM 2's [official demo supports native MPS and CPU](https://github.com/facebookresearch/sam2/blob/main/demo/README.md), with performance caveats. Run natively on macOS; benchmark MPS and retain a slower CPU fallback. Its [CUDA extension can be omitted](https://github.com/facebookresearch/sam2/blob/main/INSTALL.md); perform required contour cleanup in our geometry pipeline. Keep recognition dependencies optional so capture/calibration and core tests do not require PyTorch. Pin the tested package revision, compatible Torch stack, checkpoint hash, and device configuration. Download weights once; ordinary use should then work offline.
+SAM 2's [native MPS/CPU support](https://github.com/facebookresearch/sam2/blob/main/demo/README.md) suits this Mac. Its [optional CUDA extension](https://github.com/facebookresearch/sam2/blob/main/INSTALL.md) is disabled; the application performs its own tracing. The official revision and resolved dependencies are pinned in project metadata/`uv.lock`; jobs record checkpoint SHA-256, Torch version, device, prompts, crop, mask checksum, and timings. Weights are downloaded separately once; ordinary use is offline. Capture/calibration and edit/geometry tests do not require Torch, Qt, or OpenCV.
 
-No custom training is required for the first experiment. OCR may later help label suggestions, but recognizing words does not define sticker backing. Model confidence ranks proposals; it never approves cuts.
+SAM 3 adds [text/exemplar selection](https://github.com/facebookresearch/sam3), but its current official setup requires CUDA and [Apple/CPU support remains an open contribution](https://github.com/facebookresearch/sam3/pull/627). Reconsider it if deployment support or project needs change. OCR could label suggestions; it does not define sticker backing. Model confidence never approves cuts.
 
-## Review workflow
+## Editing behavior
 
-The sample's icon panels, “HANDLE WITH CARE” label, and “FRAGILE CHINA” headline exercise different intentions: keep a panel, trace an illustration, or surround several disconnected letters. Better mounting and LED lighting improve image quality; choosing the intended sticker remains an editing task.
+The sample's icon panels, bottom label, and headline represent different intentions: an entire panel, an illustration silhouette, or backing around disconnected letters. Fixed mounting and LED fill improve the photo; the user still chooses the intended sticker.
 
-1. Open a saved photograph or completed capture. Define the sheet/work area to exclude desk objects and mat markings; show fast panel proposals while segmentation continues. Seed SAM with panel boxes; evaluate a bounded [automatic mask pass](https://github.com/facebookresearch/sam2/blob/main/sam2/automatic_mask_generator.py) for irregular artwork inside the work area. Limit resolution, sampling, and candidate count; filter duplicates while preserving useful nested alternatives.
-2. Select proposals on a zoomable image or region list. Offer panel/label, silhouette, and enclosing-backing choices rather than committing to one interpretation.
-3. Add, correct, combine, and style selected regions. Show the base selection and resulting cut line separately, including all disconnected components.
-4. Review diagnostics and approve the exact final paths. Save/reopen the job without running recognition again; export consumes that approved geometry.
+- **Work area:** restrict proposals to the paper. Existing out-of-area suggestions are hidden; included regions remain visible with bounds diagnostics.
+- **Add/correct:** AI boxes and foreground/background clicks create alternatives. Manual rectangles, rounded rectangles, polygons, freehand, vertex moves, and add/erase brushes remain available. Split with a line or separate disconnected components.
+- **Accept/remove/reset:** proposals never overwrite chosen outlines. Accepting refinement explicitly replaces its ancestor selection and inherits its recipe; undo restores it. Show/restore removed regions or reset to the original proposal outline.
+- **Group/union/backing:** grouping preserves separate cuts. Union merges overlaps and retains disjoint components. One backing explicitly encloses artwork in a rectangle; the API also supports a deliberately requested hull. Never silently bridge letters or convex-hull a selection.
+- **Borders/shape:** grow/shrink, round/mitre/bevel corners, bounded simplification, and explicit inner cuts. Recipes recompute from the base outline rather than repeatedly dilating a raster. Mixed recipes need an explicit resulting recipe when combining. Artwork stays at its photographed position.
+- **Undo/save:** bounded undo/redo persists across sessions. Atomic autosave uses a sidecar lock and detects changed files; Save as recovers edits to a new file after a conflict. Display zoom/rotation never changes geometry.
 
-| Control | Required behavior |
-| --- | --- |
-| Add / remove | Box or foreground click to add; background clicks to exclude unwanted areas. Reject/restore proposals. Manual rectangle, rounded rectangle, polygon, and freehand fallback always remain available. |
-| Correct / split | Move vertices; brush-add/erase selection; split by drawn line or connected components. Reset a region to its proposal without losing other edits. |
-| Group | Select and adjust several stickers together while retaining separate cut paths. |
-| Union | Merge overlapping regions. Disconnected inputs remain multiple components; a [geometric union](https://shapely.readthedocs.io/en/stable/reference/shapely.union_all.html) does not create connecting paper. |
-| One backing | Explicitly enclose disconnected artwork with an editable outline or deliberate bridge. Preview the added paper; never silently turn a whole selection into a convex hull. |
-| Border / shape | Numeric grow/shrink, rounded joins by default, adjustable corner treatment, bounded smoothing/simplification, and optional inner cuts. Project defaults plus per-region overrides; default to outer boundaries only. |
-| Undo / save | Every edit supports undo/redo, including merges and deletions. Autosave atomically, restore the current document, and retain bounded undo history. |
-
-Borders are non-destructive recipe values recomputed from the edited base outline, rather than repeated raster dilation. Changing a border from 2 mm to 3 mm must not degrade the original contour. Combining regions with different styles requires an explicit resulting style. Keep artwork fixed in its photographed position; layout packing would misalign cuts on the original sheet.
+The PySide6 editor provides a [zoomable graphics view](https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QGraphicsView.html), region list, shape controls, diagnostics, and standard undo shortcuts. It holds one source raster; tiled loading is future work if larger inputs warrant it. A persistent background process retains model caches, permits analysis cancellation, and rejects stale job/revision results. Manual editing stays available during analysis. Camera capture finishes under its existing deadline before switching jobs/closing; cancellation never kills a camera transfer.
 
 ## Geometry and approval
 
 ```mermaid
 flowchart LR
-    I[Original image] --> P[Region proposals]
-    P --> R[Editable outlines]
-    U[GUI or command edits] --> R
-    R --> M[Map into calibrated millimeters]
-    M --> C[Combine, offset, simplify, validate]
+    I[Original image] --> P[Proposals]
+    P --> R[Editable image-space outlines]
+    U[GUI or scripted edits] --> R
+    R --> M[Calibrated millimeter geometry]
+    M --> C[Hole policy, borders, simplify, validate]
     C --> A[Preview and approve exact paths]
-    A --> E[Standalone Cricut export]
+    A --> E[SVG plus placement report]
 ```
 
-Convert masks to editable polygons while retaining proposal masks as provenance. Refinement uses original-resolution crops with explicit crop/resize transforms; upsampling a coarse whole-image mask does not establish edge accuracy. Preserve hand edits when proposing a replacement.
+Coordinates use the unrotated primary raster, including frame zero of Sony MPO files. Resized/cropped processing retains its transform. SAM resizes each crop internally; full-resolution output does not establish edge accuracy. Mask tracing uses at most 0.35 px simplification deviation, separate from model accuracy.
 
-Map geometry into the calibration's pixel space and then millimeters **before** physical offsets and tolerances. A uniform pixel dilation is not a uniform physical border under perspective. Apply hole/combination policy, [Shapely positive/negative buffers](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html), and bounded simplification in a documented order. Lens correction, when implemented, must precede mat mapping; densify contours as needed for nonlinear transforms. Use the [calibration compatibility and measured-validation checks](calibration.md#shared-api).
+Map into millimeters before physical offsets/tolerances: uniform pixel dilation cannot represent a uniform physical border under perspective. Map the edited outline, apply hole policy (outer cuts by default), buffer, simplify within the requested deviation, then validate. Round-buffer arcs approximate within 0.02 mm or 0.2 px. Lens correction is not implemented: current image jobs are raw, and undistorted profiles are rejected as incompatible. Future lens correction must precede mat mapping.
 
-Without calibration, allow complete image-space review and clearly labeled pixel previews. Store desired millimeter borders as pending values; physical path approval waits for a validated transform. Synthetic fixtures can test geometry independently but cannot authorize photo-derived cuts.
+Uncalibrated content review and pixel previews work completely. Millimeter borders/tolerances remain pending rather than using a guessed scale. [Calibration compatibility and measured validation](calibration.md#shared-api) gate physical approval; synthetic profiles support mathematical previews/tests only.
 
-Validate self-intersections, empty/shrunken regions, unintended components/holes, narrow bridges, duplicate/overlapping cuts, clearance, and sheet/mat bounds. Unexpected topology changes require review; do not silently repair or clip them. Feature/clearance limits depend on the eventual material stack. Outward growth includes existing surrounding paper; it cannot create an absent white border.
+Diagnostics cover invalid/empty paths, component/hole topology changes, overlapping/shared cuts, sheet/mat bounds, and optional minimum feature/clearance constraints in millimeters. Material limits are configurable through the command API; zero disables those checks. Warnings need acknowledgment; errors block approval. No silent clipping or topology repair occurs. Growth includes existing paper; it cannot create an absent white border.
 
-The preview and SVG must use the **same derived path snapshot**, including approximation tolerances. Bind export approval to source identity, region revision, calibration fingerprint, recipe, and final-geometry hash. Any change to those inputs invalidates approval. Export checks approval and validation without rerunning segmentation or independently rebuilding outlines. Physical cutter placement remains a separate validation step.
+Physical approval requires selected regions marked reviewed and stores the exact millimeter snapshot. Source, revision, recipe, calibration, and path fingerprints bind approval; every edit/undo/redo invalidates it. SVG serializes those vertices without recognition, rebuilding, scaling, or rounding, and includes a placement report. Design Space sizing/Attach/absolute placement and blade alignment remain physical acceptance checks.
 
-## Saved document and API boundaries
+## Document and service contracts
 
-Use versioned `regions.json` with stable region IDs and explicit document revisions:
+`regions.json` schema version 1 contains:
 
-| Record | Retain |
+| Record | Contents |
 | --- | --- |
-| Source/frame | Image SHA-256, primary frame index, raster dimensions, original EXIF orientation, raw/undistorted pixel space, and every preview/crop transform. Follow the calibration convention: unrotated primary raster coordinates. |
-| Proposals | Provider/checkpoint/settings, prompts, scores, cropped mask asset references/checksums, parent/alternative relationships. Avoid hundreds of full-size masks in memory or inline JSON. |
-| Edited regions | Authoritative Polygon/MultiPolygon outlines, provenance, inclusion/review state, groups, and reversible edit commands. A model rerun produces alternatives and never overwrites edited regions. |
-| Cut recipe | Combination/hole policy, offset units/value, corner style, simplification tolerance, calibration ID, and physical-validation state. |
-| Approved output | Exact millimeter path snapshot, diagnostics, input/geometry fingerprints, and approval revision. Uncalibrated content review is distinct from physical export approval. |
+| Source | Path, SHA-256, primary frame, raster dimensions, EXIF orientation, pixel/lens frame. Identical relocated bytes preserve identity. |
+| State | Work area; stable region IDs, labels, Polygon/MultiPolygon, baseline, provenance, recipe, proposed/selected/rejected status and content review; groups; embedded calibration; feature/clearance limits. |
+| History | Up to 40 snapshots in each undo/redo direction. Revisions increase even after undo, preventing old inference from becoming current again. |
+| Approval | Input fingerprint, exact millimeter paths/diagnostics, profile ID/mat size, snapshot fingerprint. Content review differs from physical approval. |
 
-Keep four services outside CLI/GUI code: recognition (`prepare`, `propose`, `refine`); document editing (`apply_command`, undo/redo, save/load); geometry (`build_cut_paths`, diagnostics); and approval. These are proposed interfaces, not existing commands. A standalone parsing entry point accepts an image path; editing is also scriptable for deterministic tests. Export accepts the saved reviewed artifact without a camera or recognition model.
+Masks are cropped PNG assets with origins/checksums, outside inline JSON. Geometry reopens without weights/inference. Keep photos and generated jobs/assets under ignored `data/`/`output/`.
 
-Use **PySide6** for the desktop editor: a [graphics view](https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QGraphicsView.html) with zoom/pan and overlays, a region list with review states, and a selected-region inspector with border controls. Adapt [Qt undo actions](https://doc.qt.io/qtforpython-6/PySide6/QtGui/QUndoStack.html) to the shared edit commands rather than implementing a second editor model.
+Shared APIs outside CLI/GUI code:
 
-Run recognition in a background worker with progress/cancel and one active model to bound memory. Cache image/crop features, load detailed image tiles on demand, and reject stale results using source/job/revision IDs. The editor must remain usable during loading, inference, cancellation, or provider failure. Future natural-language requests can translate into the same typed edit commands; direct controls come first.
+- [regions.py](../src/sticker_maker/regions.py): `RegionDocument.create/load/save`, `apply(command, expected_revision=...)`, `undo/redo`, `approve`, `approved_snapshot`.
+- Commands: `add`, `proposals`, `select/accept/reject/review/reset`, `replace`, `recipe`, `brush`, `union/backing/split`, `group/ungroup`, `work_area`, `calibration`, `constraints`, `undo/redo`. Outlines are GeoJSON; `ids` addresses regions. `regions edit --command` accepts a command or an atomic-on-save batch.
+- [geometry.py](../src/sticker_maker/geometry.py): `build_cut_paths(document, physical=False)` supplies preview/approval paths, units, profile context, and diagnostics.
+- [recognition.py](../src/sticker_maker/recognition.py): `OpenCVRecognizer.propose`, `parse_image`, `save_overlay`; [sam.py](../src/sticker_maker/sam.py): `SAMRecognizer.refine`. Results carry source identity; GUI tasks also carry job/revision IDs.
+- [export.py](../src/sticker_maker/export.py): `export_svg` consumes approved artifacts without camera/model access. Archived snapshots work without the original image; if present, its identity is checked.
 
-## Implementation and evidence
+## Evidence and next checks
 
-Build in this order:
+On the Apple M4 / 16 GB laptop, the handheld example's first OpenCV pass found the four panels and bottom label but included mat-grid cells. Interior filtering reduced 60 suggestions to 15 over the full photograph; restricting the work area further excludes desk/mat distractions. One pass took about 0.32 s after OpenCV import, including decoding/hash work. This is not an end-to-end percentile.
 
-1. Region document/edit commands and deterministic geometry, using manual selections and a fake recognizer. Establish save/reopen, undo, revision checks, and physical approval behavior first.
-2. OpenCV proposals and a thin review GUI; use the sample's panels and headline to validate editing semantics early.
-3. SAM 2.1 Small/Tiny adapter and local benchmark; integrate click/box refinement and crop processing. Freeze the default only after comparing correction effort, edge quality, latency, and peak memory.
-4. Approved-artifact export, then compose capture/review/export in the full GUI. Follow [roadmap registration checks](roadmap.md) before relying on physical cuts.
+One mask-panel box, ten warm repetitions per model, separate MPS processes:
 
-Start with the handheld example and accumulate 10–20 varied sheets, adding mounted/LED captures later. Annotate intended backing outlines, including labels versus silhouettes, grouped text, adjacent artwork, holes, fine features, low contrast, and glare. Compare OpenCV alone with SAM-assisted review against manual tracing. Measure missed/distracting proposals, component/hole errors, corrections and time to approval, boundary deviation, and memory. Use pixels until measured calibration permits millimeter comparisons. Report cold model/image setup separately from warm click refinement and full-resolution crop work.
+| SAM 2.1 model | Warm refinement p95 | First refinement after model load | Peak process RSS |
+| --- | --- | --- | --- |
+| Small | 28 ms | 0.85 s | 1.31 GB |
+| Tiny | 168 ms | 0.70 s | 1.24 GB |
 
-Initial unmeasured goals: visible selection/undo feedback within 100 ms, first cheap proposals within 1 second of file readiness, and warm click refinement at p95 within 1 second. Measure these on the actual laptop; slower inference must not block editing. The combined capture-to-first-preview target stays in the roadmap and requires its own end-to-end measurement.
+Small produced one clean region; Tiny's raw mask had 43 components, increasing tracing work. Outer-cut policy can fill internal holes/islands. This favors Small initially, not as a general ranking. Model setup ranged from about 1.1 s with cached imports/files to 4.8 s initially; first-use GPU compilation affects startup. Small's CPU fallback completed at 1.03 s first refinement and approximately 34 ms warm in two trials. RSS excludes GPU allocations. Detailed prompts, hashes, timings, masks, and logs remain local artifacts under `output/parser-sample/`.
 
-Acceptance includes adding a missed panel, rejecting a false region, subtracting unwanted content, splitting, distinguishing group/union/one-backing on disconnected letters, changing borders, undoing, and reopening identical paths. Automated fixtures must cover projective millimeter offsets, holes, disconnected unions, empty negative buffers, collisions/bounds, simplification error, stale inference, and approval invalidation. Test edit/geometry contracts without camera/model dependencies; keep model integration and visual benchmarks separate. No recognition model has yet been run on the sample, and neither segmentation precision nor GUI latency is established.
+Tests cover camera/model-independent edit/geometry contracts, optional OpenCV proposals, offscreen drawing/selection/vertices/borders/undo, stale results, and capture completion handling. A separate cached-model GUI test verifies real background box/click refinement. SVG tests compare serialized vertices exactly to the approved snapshot. No camera was accessed during parser development; a new live GUI capture remains a hardware follow-up.
+
+Next, annotate intended backing on 10–20 varied sheets. Compare manual tracing, OpenCV proposals, and SAM-assisted review using misses/distractors, component/hole errors, corrections/time to approval, and boundary deviation. Use pixels until measured calibration permits millimeters. Include labels versus silhouettes, grouped text, adjacent artwork, fine features, low contrast, and glare; add mounted/LED examples later. Bounded automatic SAM discovery and natural-language commands are future enhancements if evidence justifies them. Acceptance targets remain in the [roadmap](roadmap.md).

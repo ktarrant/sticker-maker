@@ -6,7 +6,7 @@ Turn an overhead photo into reviewed cut paths that align with the original prin
 
 - **Capture:** direct USB control through Python `gphoto2`/libgphoto2, with the A6000 in PC Remote mode. Preserve the original camera file and use captured stills rather than requiring live view.
 - **Production rig:** fixed top-down camera mount and diffuse LED array fill. Lock lens/zoom, focus, exposure, and white balance; keep assembled media flat and references visible. The handheld repository sample is a parsing-development example, not the expected production image quality.
-- **Interaction:** an eventual all-in-one desktop GUI composes capture, region proposal/editing/approval, and export. Each phase also remains independently callable and testable through its own API and command. Run blocking work outside the GUI event loop.
+- **Interaction:** the initial PySide6 desktop GUI composes capture, region proposal/editing/approval, and export. Each phase remains independently callable and testable through its own API and command. Capture and recognition run in a cancellable background process; active camera transfers finish under the capture service's deadline before switching jobs or closing.
 - **Cutter handoff:** Cricut Design Space imports the SVG. Its [documented cutting workflow](https://help.cricut.com/hc/en-us/articles/26751753338007-Make-screen-Design-Space-Guide) includes material/tool selection, mat loading, and pressing Go. Direct cutter control remains a separate feasibility question.
 
 ## Three independent phases
@@ -14,12 +14,12 @@ Turn an overhead photo into reviewed cut paths that align with the original prin
 | Phase | Input → output | Responsibility |
 | --- | --- | --- |
 | Capture (implemented) | Camera request → original `image.jpg` + `capture.json` | Trigger, transfer, decode, and record provenance/timings. No parsing or cutter dependency. |
-| Parse (planned) | Any existing image + optional calibration → versioned `regions.json` + review overlay | Propose/edit/approve regions in explicit image coordinates; apply lens/perspective correction and map to millimeters when calibrated. Camera access is unnecessary. |
-| Export (planned) | Reviewed geometry in millimeters → `cuts.svg` + placement instructions | Validate physical geometry and emit Cricut-compatible cut paths. Photo-derived regions require a validated physical transform; synthetic fixtures can supply millimeter geometry directly. |
+| Parse/review (implemented) | Any existing image + optional calibration → versioned `regions.json` + review overlay | OpenCV proposals, optional SAM selection, reversible editing, and calibrated millimeter paths. Source coordinates remain explicit; lens correction is still upstream future work. Camera access is unnecessary. |
+| Export (implemented; physical handoff unvalidated) | Approved millimeter path snapshot → `cuts.svg` + placement report | Serialize the exact approved geometry. Photo-derived cuts require source-bound measured calibration and independent checks. Actual Design Space import/placement and cutter accuracy remain to be tested. |
 
-The [parser/review strategy](parser.md) defines the proposed region document, editing controls, geometry pipeline, and benchmark. Start with OpenCV label/panel proposals and SAM 2.1 Small for prompted segmentation, comparing Tiny on the laptop before fixing the checkpoint. Use Shapely for deterministic cut geometry and PySide6 for a thin review editor during parser development. Recognition remains replaceable and optional for core services/tests; no model quality or latency has been measured yet.
+The [parser/review contract](parser.md) defines implemented editing controls, artifacts, geometry, and local model measurements. OpenCV supplies fast label/panel proposals; SAM 2.1 Small is the initial interactive backend after a Small/Tiny experiment on the laptop. Shapely builds deterministic cut geometry. Recognition remains replaceable and optional for core services/tests; broader quality evaluation is outstanding.
 
-Keep model proposals, editable image-space outlines, and derived millimeter paths separate. All edits are reversible; default to outer boundaries with explicit inner cuts. Uncalibrated review is allowed, while physical approval requires validated calibration. Preview and export share one approved path snapshot; source, geometry, recipe, or calibration changes invalidate that approval. The GUI composes phase APIs rather than duplicating their logic.
+Model proposals, editable image-space outlines, and derived millimeter paths remain separate. Edits are reversible; default to outer boundaries with explicit inner cuts. Uncalibrated review is allowed, while physical approval requires measured validation. Preview and export share one approved path snapshot; source, geometry, recipe, or calibration changes invalidate approval. Autosave detects concurrent file changes instead of overwriting another editor. The GUI composes phase APIs rather than duplicating their logic.
 
 ## Capture implementation
 
