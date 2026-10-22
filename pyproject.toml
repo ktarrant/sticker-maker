@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "Turn overhead photos of physical media into Cricut-ready sticker cut paths."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "All rights reserved" }
 authors = [{ name = "Sticker Maker Project" }]
 dependencies = []
 
