@@ -1,55 +1,44 @@
-# System Design
+# System design
 
-## Goal and working assumption
+## Goal and decisions
 
-Turn an overhead image of printed media placed on a Cricut mat into reviewed cut paths that line up with the physical media when the mat is loaded into the Cricut Maker 4.
+Turn an overhead photo into reviewed cut paths that align with the original printed media on a Cricut Maker 4 mat. The working assumption is that the media receives adhesive backing before capture; reproducing artwork on new sticker stock would require a separate Print Then Cut workflow.
 
-Working assumption: the Maker cuts the original media on the mat. If the intended result is instead to print new sticker artwork and use Cricut Print Then Cut, that needs a different output and alignment workflow.
+- **Capture:** direct USB control through Python `gphoto2`/libgphoto2, with the A6000 in PC Remote mode. Preserve the original camera file and use captured stills rather than requiring live view.
+- **Production rig:** fixed top-down camera mount and diffuse LED array fill. Lock lens/zoom, focus, exposure, and white balance; keep assembled media flat and references visible. The handheld repository sample is a parsing-development example, not the expected production image quality.
+- **Interaction:** an eventual all-in-one desktop GUI composes capture, region proposal/editing/approval, and export. Each phase also remains independently callable and testable through its own API and command. Run blocking work outside the GUI event loop.
+- **Cutter handoff:** Cricut Design Space imports the SVG. Its [documented cutting workflow](https://help.cricut.com/hc/en-us/articles/26751753338007-Make-screen-Design-Space-Guide) includes material/tool selection, mat loading, and pressing Go. Direct cutter control remains a separate feasibility question.
 
-## Pipeline
+## Three independent phases
 
-1. **Acquire** — Capture with the Sony ILCE-6000 through the `gphoto2` Python binding. Keep a watched-folder import path available as a fallback. Preserve the original image.
-2. **Calibrate** — Find the mat plane and its coordinate frame. Correct perspective, then map pixels to millimeters. Record mat orientation and the origin used by the cut file.
-3. **Propose regions** — Suggest candidate sticker shapes from image boundaries, color/texture changes, and object segmentation.
-4. **Review** — Show the image with editable cut boundaries. The person confirms, removes, or adjusts each region before cutting.
-5. **Prepare paths** — Smooth and validate geometry, apply an optional border/offset, check size and mat limits, and retain an overlay preview.
-6. **Export and cut** — Export correctly scaled SVG paths. Import them into Cricut Design Space, confirm placement/material settings, then cut a small calibration sample before a complete sheet.
+| Phase | Input → output | Responsibility |
+| --- | --- | --- |
+| Capture (implemented) | Camera request → original `image.jpg` + `capture.json` | Trigger, transfer, decode, and record provenance/timings. No parsing or cutter dependency. |
+| Parse (planned) | Any existing image + calibration → versioned `regions.json` + review overlay | Correct lens/perspective, map pixels to millimeters, propose regions, and support editable boundaries and approval. Camera access is unnecessary. |
+| Export (planned) | Reviewed `regions.json` → `cuts.svg` + placement instructions | Validate physical geometry and emit Cricut-compatible cut paths. Test with synthetic reviewed regions without capture or parsing. |
 
-## Coordinate and job data
+The planned region artifact must include its schema version, source-image identity, coordinate units/transform, calibration checks, geometry, offsets, and approval state. Invalidate approval after source/geometry changes. The GUI calls phase APIs instead of duplicating their logic or embedding it in button handlers.
 
-Use one canonical coordinate frame in millimeters, tied to the mat's orientation in the camera image and the mat-loading orientation in Design Space. Each job should retain:
+Start parsing with simple label/panel proposals plus click/box selection, editable polygons, merge/split, rejection, and undo. Default to outer boundaries; inner cuts are explicit choices. Evaluate prompted segmentation when representative examples justify it. Smaller processing previews must retain transforms to full-resolution and mat coordinates.
 
-- Original image and capture metadata (camera, timestamp, image size, and capture settings when available).
-- Mat model/size and detected boundary or fiducials.
-- Pixel-to-millimeter transform and its confidence/error estimate.
-- Reviewed region geometry, optional border offset, and resulting SVG.
-- A preview overlay and processing parameters so a cut can be reproduced.
+## Capture implementation
 
-Generated files and images remain local under the ignored `data/` and `output/` directories; don't commit personal capture data by default.
+`capture.capture_image()` is the reusable entry point; `list_cameras()` and `camera_settings()` provide diagnostics. Native gphoto2 work runs in a subprocess with a whole-operation deadline. A shared process lock serializes this application's camera use across output folders; other camera applications must be closed. Failed or uncertain operations never trigger an automatic second exposure.
 
-## What the handheld sample can establish
+Each job preserves the camera's JPEG/MPO bytes. Pillow fully decodes every embedded frame; frame zero is the primary image. A black image is valid. `capture.json` is atomically published only after validation and worker completion; failures have `failure.json` instead. Consumers use completed manifests, not merely the presence of a JPEG. Metadata includes camera/settings, UTC capture-request time, remote filename, primary dimensions/orientation, frame count, byte count, SHA-256, software versions, warnings, and call timings. On Sony, the capture call may already perform transfer, so the file-get timing alone is not USB transfer latency.
 
-A sample can help us develop and compare segmentation approaches, decide how region review should work, choose useful image preprocessing, and validate SVG generation at the geometry level. Perspective correction can help with a tilted image if the mat boundary/grid is visible.
+Optional shutter/ISO/white-balance overrides and manual focus validate camera writability/choices before mutation. Restore prior settings on a fresh camera connection because the driver can retain stale properties after capture. Exposure changes can take seconds each; production should reuse a fixed profile. A restoration failure preserves a valid image and reports warnings. A forced deadline can prevent restoration; check camera state before retrying. Aperture control is advertised but failed confirmation in hardware testing, so leave aperture and the read-only mode dial under manual control.
 
-It cannot establish final camera-to-cutter alignment or repeatable scale because the camera and mat position will move between handheld shots. The mounted setup will still need a fixed empty-mat calibration and a physical test cut.
+## Coordinates and physical registration
 
-## Capture guidance before the mounts arrive
+Use millimeters with the origin at a measured point on the usable adhesive grid, X right and Y toward the trailing edge in the selected loading orientation. Distinguish the grid from the outer plastic boundary. Use asymmetric references, estimate mat pose per capture, and measure error on independent points beyond those used to fit the transform.
 
-- Use the original full-resolution JPEG (RAW is welcome too, but not required). Avoid screenshots or messaging-app resized copies.
-- Include the complete mat, visible edges, and as much of its printed grid as possible; keep the media flat and inside the mat area.
-- Use even room light, avoid flash glare, and keep hands and shadows out of the frame.
-- A little tilt is fine for early pipeline work. Don't worry about making it match the final mount's orientation.
-- If convenient, also take one image of the empty mat with a ruler in the mat plane. It helps check scale and perspective handling.
+Planar perspective correction does not remove lens distortion or compensate for curled/raised media. Keep references near the artwork plane and validate the locked lens/JPEG settings using [camera calibration and undistortion](https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html). Known planar references can establish scale even in a handheld image; neither handheld nor mounted capture establishes blade placement by itself.
 
-## Decisions still needed
+Physical registration must be demonstrated through the actual SVG import and mat-loading process. [Attach](https://help.cricut.com/hc/en-us/articles/360009380514-How-to-use-Attach-in-Design-Space) preserves relative shape arrangement; verify imported size and absolute group placement separately. Do not assume SVG whitespace or Canvas coordinates preserve a physical origin. [Prepare-screen placement resets on return to Canvas](https://help.cricut.com/hc/en-us/articles/26762475430167-Prepare-screen-Design-Space-Guide). Keep the sheet attached to the same mat from capture through cutting.
 
-- Is the Maker cutting the original magazine/media page, or is the page only a reference for reproducing artwork on sticker material?
-- Should a cut follow the visible artwork edge, add a white/colored sticker border, or allow both per region?
-- For the first version, should the workflow assume manual selection and approval for every candidate?
-- Which mat size and media thickness will be used first?
+Choose one adhesive/media/liner stack and kiss-cut versus through-cut behavior before physical validation. An outward offset includes existing surrounding paper; it cannot create a white border absent from the source. Check offsets against neighboring artwork, other cuts, sheet and mat bounds, narrow features, self-intersections, and duplicate paths.
 
-## Before and after the camera mount arrives
+## Job records
 
-**Before:** obtain representative images, build the import/review/contour/SVG path, and verify output dimensions and bounds with synthetic geometry.
-
-**After:** fix camera/lens/zoom/focus/exposure, calibrate against the mat, measure repeatability after mat reload, test capture-to-preview latency, and validate camera-to-cut placement with a small physical test cut.
+Keep phase artifacts under ignored `data/` and `output/` directories. Retain calibration, reviewed paths, material stack, placement procedure, and tool/cut settings as later phases are implemented. Reference graphics remain separate from production cuts. Preserve artifacts for reproducibility; context documents describe the current system.
