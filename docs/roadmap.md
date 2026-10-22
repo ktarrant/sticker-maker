@@ -8,17 +8,18 @@
 - `data/examples/DSC06487.JPG` is the user's handheld 6000 × 4000 example for independent parsing development. Production images will use a static top-down mount and LED array fill. Use the label/icon panels as initial proposals and the headline to test grouping; this sample does not establish final rig quality.
 - Parsing, Cricut export, and the combined GUI are not implemented. Segmentation quality, calibrated scale, and physical cut alignment remain unmeasured.
 
-See [system design](system-design.md) for the three phase contracts. Parsing can use saved images now; export can use synthetic reviewed geometry. Absolute blade placement remains a physical feasibility check alongside software development.
+Capture is ready to support parsing development. Parsing is the next milestone and can use saved images without the camera or final rig calibration. See [system design](system-design.md) for phase contracts. Export can use synthetic reviewed geometry; absolute blade placement remains a physical feasibility check.
 
 ## Next milestones
 
 | Order | Deliverable | Exit check |
 | --- | --- | --- |
-| 1 | Harden capture on hardware | Expand to 30 captures and real idle/wake, disconnect, and timeout recovery checks; measure sustained latency and settings restoration. |
-| 2 | Standalone parsing/review | Load the handheld example directly; calibrate, propose/edit/approve regions, and save geometry without a connected camera. |
-| 3 | Standalone Cricut export | Export synthetic and reviewed region artifacts; verify SVG size, bounds, Attach, absolute placement, and material settings independently. Start physical pen/blade tests early using known geometry. |
-| 4 | Combined desktop GUI | Compose the same phase APIs in one capture → review → export flow, retaining standalone commands and tests. |
-| 5 | Validate the production rig and sticker stack | Repeat calibration with the mounted camera/LED fill; validate center/edge alignment over at least 10 mat reloads, then cut one sticker and a sheet. |
+| 1 | Standalone parsing/review | Load the handheld example directly; propose/edit/approve regions and save geometry in explicit image coordinates without a connected camera. Accept calibration when available. |
+| 2 | Standalone Cricut export | Export synthetic and calibrated reviewed region artifacts; verify SVG size, bounds, Attach, absolute placement, and material settings independently. Start physical pen/blade tests early using known geometry. |
+| 3 | Combined desktop GUI | Compose the same phase APIs in one capture → review → export flow, retaining standalone commands and tests. |
+| 4 | Calibrate and validate the production rig and sticker stack | Establish the final lens profile and mat mapping with the mounted camera/LED fill; validate center/edge alignment over at least 10 mat reloads, then cut one sticker and a sheet. |
+
+Longer capture runs and real idle/wake, disconnect, and timeout recovery checks remain reliability follow-up work; they do not block parsing development. Calibration interfaces and geometry can be tested with fixtures now, while final rig accuracy waits for the mounts.
 
 The simple registration experiment can start before the final camera mount arrives. Repeat full-system measurements after installing the rig. A stable systematic offset may be compensable; variation between loads cannot be fixed with one constant correction.
 

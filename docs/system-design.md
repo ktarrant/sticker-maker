@@ -14,10 +14,10 @@ Turn an overhead photo into reviewed cut paths that align with the original prin
 | Phase | Input → output | Responsibility |
 | --- | --- | --- |
 | Capture (implemented) | Camera request → original `image.jpg` + `capture.json` | Trigger, transfer, decode, and record provenance/timings. No parsing or cutter dependency. |
-| Parse (planned) | Any existing image + calibration → versioned `regions.json` + review overlay | Correct lens/perspective, map pixels to millimeters, propose regions, and support editable boundaries and approval. Camera access is unnecessary. |
-| Export (planned) | Reviewed `regions.json` → `cuts.svg` + placement instructions | Validate physical geometry and emit Cricut-compatible cut paths. Test with synthetic reviewed regions without capture or parsing. |
+| Parse (planned) | Any existing image + optional calibration → versioned `regions.json` + review overlay | Propose/edit/approve regions in explicit image coordinates; apply lens/perspective correction and map to millimeters when calibrated. Camera access is unnecessary. |
+| Export (planned) | Reviewed geometry in millimeters → `cuts.svg` + placement instructions | Validate physical geometry and emit Cricut-compatible cut paths. Photo-derived regions require a validated physical transform; synthetic fixtures can supply millimeter geometry directly. |
 
-The planned region artifact must include its schema version, source-image identity, coordinate units/transform, calibration checks, geometry, offsets, and approval state. Invalidate approval after source/geometry changes. The GUI calls phase APIs instead of duplicating their logic or embedding it in button handlers.
+The planned region artifact must include its schema version, source-image identity, coordinate units/transform, calibration state, geometry, offsets, and approval state. Uncalibrated image coordinates support parsing/review but cannot be exported as a physical cut job. Invalidate approval after source/geometry changes. The GUI calls phase APIs instead of duplicating their logic or embedding it in button handlers.
 
 Start parsing with simple label/panel proposals plus click/box selection, editable polygons, merge/split, rejection, and undo. Default to outer boundaries; inner cuts are explicit choices. Evaluate prompted segmentation when representative examples justify it. Smaller processing previews must retain transforms to full-resolution and mat coordinates.
 
@@ -30,6 +30,8 @@ Each job preserves the camera's JPEG/MPO bytes. Pillow fully decodes every embed
 Optional shutter/ISO/white-balance overrides and manual focus validate camera writability/choices before mutation. Restore prior settings on a fresh camera connection because the driver can retain stale properties after capture. Exposure changes can take seconds each; production should reuse a fixed profile. A restoration failure preserves a valid image and reports warnings. A forced deadline can prevent restoration; check camera state before retrying. Aperture control is advertised but failed confirmation in hardware testing, so leave aperture and the read-only mode dial under manual control.
 
 ## Coordinates and physical registration
+
+Calibration is a reusable module shared by parsing and export. Keep its profiles separate from capture so saved photos can be processed independently. Build/test the interface and geometry with fixtures now; establish and validate the production lens profile and mat mapping once the fixed mount and LED array are installed.
 
 Use millimeters with the origin at a measured point on the usable adhesive grid, X right and Y toward the trailing edge in the selected loading orientation. Distinguish the grid from the outer plastic boundary. Use asymmetric references, estimate mat pose per capture, and measure error on independent points beyond those used to fit the transform.
 
