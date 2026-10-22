@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sticker-maker"
+version = "0.1.0"
+description = "Turn overhead photos of physical media into Cricut-ready sticker cut paths."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "All rights reserved" }
+authors = [{ name = "Sticker Maker Project" }]
+dependencies = []
+
+[project.scripts]
+sticker-maker = "sticker_maker.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sticker_maker"]
+
+[tool.uv]
+package = true
+

@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.DS_Store
+.env
+.python-version
+
+# Captures and generated work are local data, not source files.
+/data/
+/output/
