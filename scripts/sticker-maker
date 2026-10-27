@@ -1,0 +1,11 @@
+#!/bin/bash
+# Use the prepared environment as-is, preserving offline operation and extras.
+set -euo pipefail
+project_dir="$(cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$project_dir"
+runtime_dir="${UV_PROJECT_ENVIRONMENT:-$project_dir/.venv}"
+if [[ ! -x "$runtime_dir/bin/python" ]]; then
+    printf 'Run ./scripts/setup-macos.sh first.\n' >&2
+    exit 1
+fi
+exec "$runtime_dir/bin/python" -m sticker_maker.cli "$@"

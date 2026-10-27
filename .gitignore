@@ -6,7 +6,6 @@ dist/
 build/
 .DS_Store
 .env
-.python-version
 
 # Captures and generated work are local data, not source files.
 /data/

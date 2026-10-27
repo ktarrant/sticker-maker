@@ -1,6 +1,6 @@
 # Calibration contract
 
-`sticker_maker.calibration` works on saved reference data without importing gphoto2 or accessing a camera. It fits a planar homography with normalized point coordinates and NumPy SVD. See the [synthetic input fixture](../tests/fixtures/calibration-references.json) and the [README commands](../README.md#calibration-without-a-camera).
+`sticker_maker.calibration` works on saved reference data without importing gphoto2 or accessing a camera. It fits a planar homography with normalized point coordinates and NumPy SVD. See the [synthetic input fixture](../tests/fixtures/calibration-references.json) and the [README commands](../README.md#calibration-and-svg-export).
 
 ## Reference input and profile
 
@@ -33,4 +33,4 @@ The CLI exposes `calibration fit`, `inspect`, and `map`; `map --inverse` maps mi
 
 ## Final rig work
 
-Fit the mat pose per image using visible references. Supply the capture manifest's image hash/dimensions/orientation and retain the resulting profile ID in reviewed region artifacts. Keep preview-to-original transforms explicit. After installing the rig, measure lens distortion, validate independent references over the working area, and test actual cutter placement. The current fixture is a synthetic 300 × 200 mm plane, not a measured Cricut mat or a calibration of the handheld example.
+Fit the mat pose per image using visible references. Supply the capture manifest's image hash/dimensions/orientation and retain the resulting profile ID in reviewed region artifacts. Keep preview-to-original transforms explicit. The mount and fill lighting are now assembled; measure lens distortion, validate independent references over the working area, and test actual cutter placement. The current fixture is a synthetic 300 × 200 mm plane, not a measured Cricut mat or a calibration of the handheld example.

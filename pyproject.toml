@@ -7,21 +7,35 @@ name = "sticker-maker"
 version = "0.1.0"
 description = "Turn overhead photos of physical media into Cricut-ready sticker cut paths."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
+license = { file = "LICENSE" }
 authors = [{ name = "Sticker Maker Project" }]
 dependencies = [
-    "gphoto2>=2.6.4",
-    "numpy>=2.0",
+    "gphoto2>=2.6.4; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "gphoto2==2.6.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "numpy>=2.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "numpy==1.26.4; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "pillow>=11.0",
     "shapely>=2.1,<3",
 ]
 
 [project.optional-dependencies]
-parser = ["opencv-python-headless>=4.11,<5"]
-gui = ["opencv-python-headless>=4.11,<5", "PySide6-Essentials>=6.8,<7"]
+parser = [
+    "opencv-python-headless>=4.11,<5; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "opencv-python-headless==4.11.0.86; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+]
+gui = [
+    "sticker-maker[parser]",
+    "PySide6-Essentials>=6.8,<7; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "PySide6-Essentials==6.8.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+]
 sam = [
-    "torch>=2.6,<3",
-    "torchvision>=0.21,<1",
+    "torch>=2.6,<3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "torch==2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "torchvision>=0.21,<1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "torchvision==0.17.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "setuptools>=70,<81",
+    "wheel>=0.45",
     "SAM-2 @ git+https://github.com/facebookresearch/sam2.git@2b90b9f5ceec907a1c18123530e92e794ad901a4",
 ]
 
@@ -36,4 +50,12 @@ allow-direct-references = true
 
 [tool.uv]
 package = true
+# SAM's declared floors target newer platforms. Static image inference on Intel
+# uses the last official macOS x86 Torch release, tested separately with NumPy 1.x.
+override-dependencies = [
+    "torch==2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "torch>=2.6,<3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "torchvision==0.17.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "torchvision>=0.21,<1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+]
 

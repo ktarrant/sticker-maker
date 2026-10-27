@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import math
+import platform
 from pathlib import Path
 import resource
 import subprocess
@@ -66,17 +67,21 @@ class SAMRecognizer:
         if model not in CONFIGS or device not in {"auto", "mps", "cpu"}:
             raise RegionError("Use SAM 2.1 small/tiny on auto, mps, or cpu.")
         started = time.perf_counter()
+        from sticker_maker.models import verify_model
+        verified = verify_model(Path(checkpoint), model)
         try:
             import torch
             from sam2.build_sam import build_sam2
             from sam2.sam2_image_predictor import SAM2ImagePredictor
         except ImportError as exc:
-            raise RegionError("Install AI dependencies: SAM2_BUILD_CUDA=0 uv sync --extra gui --extra sam") from exc
+            raise RegionError("Install the compatible AI environment with: ./scripts/setup-macos.sh") from exc
         checkpoint = Path(checkpoint).resolve()
-        with checkpoint.open("rb") as stream:
-            checksum = hashlib.file_digest(stream, "sha256").hexdigest()
+        checksum = verified["sha256"]
+        intel_mac = sys.platform == "darwin" and platform.machine() == "x86_64"
         if device == "auto":
-            device = "mps" if torch.backends.mps.is_available() else "cpu"
+            device = "mps" if torch.backends.mps.is_available() and not intel_mac else "cpu"
+        if device == "mps" and intel_mac:
+            raise RegionError("The Intel compatibility runtime uses CPU image inference; choose auto or cpu.")
         if device == "mps" and not torch.backends.mps.is_available():
             raise RegionError("MPS is unavailable in this process; choose CPU or run with Metal access.")
         self.torch, self.device = torch, device

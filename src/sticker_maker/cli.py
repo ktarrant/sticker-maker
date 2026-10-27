@@ -18,6 +18,20 @@ def main() -> None:
     )
     parser.add_argument("--version", action="version", version=__version__)
     commands = parser.add_subparsers(dest="command")
+    preflight = commands.add_parser("doctor", help="Check local runtime/dependencies without accessing a camera.")
+    preflight.add_argument("--require-ai", action="store_true")
+    preflight.add_argument("--output", type=Path)
+    preflight.add_argument("--models-dir", type=Path, default=Path("output/models"))
+    models = commands.add_parser("models", help="Fetch verified official SAM weights once for offline use.")
+    model_actions = models.add_subparsers(dest="models_command", required=True)
+    fetch = model_actions.add_parser("fetch")
+    fetch.add_argument("--model", choices=("small", "tiny"), default="small")
+    fetch.add_argument("--directory", type=Path, default=Path("output/models"))
+    validation = commands.add_parser("validate-capture", help="Take an explicit validation batch; stop on failures/warnings, never retry.")
+    validation.add_argument("--count", type=int, default=3)
+    validation.add_argument("--timeout", type=float, default=60)
+    validation.add_argument("--port")
+    validation.add_argument("--output-dir", type=Path, default=Path("output/validation/capture"))
     commands.add_parser("cameras", help="List connected gphoto2 cameras without taking a photo.")
     settings = commands.add_parser("camera-settings", help="Read available camera controls and their choices.")
     settings.add_argument("--port")
@@ -45,9 +59,10 @@ def main() -> None:
     parsing.add_argument("--work-area", type=float, nargs=4, metavar=("X1", "Y1", "X2", "Y2"), help="Restrict proposals to this rectangle in original image pixels.")
     regions = commands.add_parser("regions", help="Inspect, edit, preview, or approve a saved review document.")
     edits = regions.add_subparsers(dest="regions_command", required=True)
-    for name in ("inspect", "edit", "preview", "calibrate", "approve"):
+    for name in ("inspect", "edit", "preview", "calibrate", "approve", "relocate", "bundle"):
         child = edits.add_parser(name)
         child.add_argument("document", type=Path)
+        child.add_argument("--image", type=Path, help="Locate the identical original image after moving a job.")
         if name == "edit":
             source = child.add_mutually_exclusive_group(required=True)
             source.add_argument("--command", dest="edit_json", help="One JSON edit command or an array of commands.")
@@ -59,9 +74,12 @@ def main() -> None:
             child.add_argument("profile", type=Path)
         elif name == "approve":
             child.add_argument("--acknowledge-warnings", action="store_true")
+        elif name == "bundle":
+            child.add_argument("--output-dir", type=Path, required=True)
     review = commands.add_parser("review", help="Open the desktop region editor for a saved image or regions JSON.")
     review.add_argument("input", type=Path, nargs="?")
     review.add_argument("--output", type=Path, help="Autosave path for a new image review job.")
+    review.add_argument("--image", type=Path, help="Locate the identical original for an existing job.")
     sam = commands.add_parser("sam", help="Optional interactive segmentation and local model benchmarking.")
     model_commands = sam.add_subparsers(dest="sam_command", required=True)
     refine = model_commands.add_parser("refine", help="Save an AI proposal without overwriting reviewed outlines.")
@@ -84,7 +102,25 @@ def main() -> None:
     exporting.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
-        if args.command == "cameras":
+        if args.command == "doctor":
+            from sticker_maker.diagnostics import doctor
+            from sticker_maker.regions import atomic_json
+            result = doctor(require_ai=args.require_ai, models_dir=args.models_dir)
+            if args.output:
+                atomic_json(args.output, result)
+            print(json.dumps(result, indent=2))
+            if result["status"] == "error":
+                raise SystemExit(1)
+        elif args.command == "models":
+            from sticker_maker.models import fetch_model
+            print(json.dumps(fetch_model(args.directory, args.model), indent=2))
+        elif args.command == "validate-capture":
+            from sticker_maker.validation import validate_capture
+            result = validate_capture(args.output_dir, count=args.count, timeout=args.timeout, port=args.port)
+            print(json.dumps(result, indent=2))
+            if result["status"] != "passed":
+                raise SystemExit(1)
+        elif args.command == "cameras":
             print(json.dumps(list_cameras(), indent=2))
         elif args.command == "camera-settings":
             print(json.dumps(camera_settings(port=args.port), indent=2))
@@ -116,7 +152,7 @@ def main() -> None:
         elif args.command == "regions":
             from sticker_maker.regions import RegionDocument
             from sticker_maker.geometry import build_cut_paths
-            document = RegionDocument.load(args.document)
+            document = RegionDocument.load(args.document, image=args.image)
             if args.regions_command == "edit":
                 value = json.loads(args.commands_file.read_text() if args.commands_file else args.edit_json)
                 batch = value if isinstance(value, list) else [value]
@@ -125,6 +161,14 @@ def main() -> None:
                     result_ids = document.apply(command, expected_revision=args.expected_revision if index == 0 else None)
                 document.save(args.document)
                 result = {"revision": document.revision, "region_ids": result_ids}
+            elif args.regions_command == "bundle":
+                from sticker_maker.transfer import bundle_job
+                result = bundle_job(args.document, args.output_dir, image=args.image)
+            elif args.regions_command == "relocate":
+                if args.image is None:
+                    raise ValueError("Use --image to locate the identical original image.")
+                document.save(args.document)
+                result = {"image": document.source["path"], "revision": document.revision}
             elif args.regions_command == "calibrate":
                 from sticker_maker.calibration import load_calibration
                 document.apply({"op": "calibration", "profile": load_calibration(args.profile).to_dict()})
@@ -143,7 +187,7 @@ def main() -> None:
             print(json.dumps(result, indent=2))
         elif args.command == "review":
             from sticker_maker.review import run_review
-            run_review(args.input, output=args.output)
+            run_review(args.input, output=args.output, image=args.image)
         elif args.command == "sam":
             from sticker_maker.sam import SAMRecognizer, benchmark_models
             if args.sam_command == "refine":

@@ -3,22 +3,23 @@
 ## Current state
 
 - Capture is an independent gphoto2 service/CLI with settings inspection, direct shutter/download, validation, manifests, locking, deadlines, and restoration. An initial A6000 test downloaded/decoded 6000 × 4000 in 3.86 s, not a sustained guarantee. Shutter/ISO/white-balance/manual-focus overrides restored correctly. Exposure changes/restoration took 22.92 s; reuse a fixed profile. Keep aperture and the read-only mode dial manual.
-- Calibration fits/saves/loads profiles, checks image/rig context and independent errors, and maps pixels ↔ millimeters without a camera. Synthetic tests establish software behavior. Production lens correction and mat/cutter accuracy await the mount, LED fill, and measured references; see the [calibration contract](calibration.md).
+- Calibration fits/saves/loads profiles, checks image/rig context and independent errors, and maps pixels ↔ millimeters without a camera. The mount and LED fill are assembled. Measured references, lens correction, and mat/cutter accuracy remain unvalidated; see the [calibration contract](calibration.md).
 - Parsing/review implements saved-image OpenCV proposals, SAM 2.1 Small box/click refinement, editable outlines, group/union/backing, split/brush/vertices, borders/inner cuts, undo/redo, autosave, and source/revision checks. See the [parser contract and measurements](parser.md).
-- The initial desktop GUI composes capture → proposals → review → approval/export using standalone APIs. Analysis is cancellable; camera transfers finish before switching jobs/closing. Real-model offscreen GUI selection passed. A new live GUI capture needs checking after charging.
+- The desktop GUI composes capture → proposals → review → approval/export using standalone APIs. Analysis is cancellable; camera transfers finish before switching jobs/closing. Real-model offscreen selection passed. Target hardware testing is on the other Intel MacBook running Ventura 13.7.5; follow the [hardware handoff](hardware-validation.md).
 - SVG export serializes approved millimeter paths plus placement instructions. Measured calibration, content review, geometry validation, and current approval are required. Actual Design Space import/placement and physical cutting remain unvalidated.
-- The 6000 × 4000 repository example is handheld. It supports parser development, not production image quality or physical scale. Initial OpenCV and Small/Tiny experiments show feasibility, not representative recognition quality.
+- The local 6000 × 4000 development photo is handheld and excluded from Git. Initial OpenCV and Small/Tiny experiments on it show feasibility, not production image quality, physical scale, or representative recognition quality.
+- Transfer readiness includes locked architecture-specific dependencies, managed Python 3.12 setup, verified model downloads, camera-free preflight, a generated software example, relative image paths, and complete review-job bundles. Intel runtime/software tests passed through Rosetta; actual Ventura/USB/lighting results require the target Mac.
 
 ## Next work
 
 | Priority | Work | Acceptance |
 | --- | --- | --- |
-| 1 | Review parser/editor on representative media | Exercise the sample manually, then annotate 10–20 varied sheets; compare correction effort, proposal recall, contour quality, and latency against manual tracing. Refine defaults from results. |
-| 2 | Validate real GUI capture and reliability | After charging, Capture downloads/proposes without losing the previous job. Check repeated captures, idle/wake, disconnects/timeouts, and UI recovery. No automatic second exposures. |
+| 1 | Validate mounted capture/parser on the Intel MacBook | Follow the handoff: preflight, separate capture and saved-image parsing, then the GUI. Record actual image quality, settings restoration, timings, idle/wake/disconnect recovery, and preserved prior jobs. No automatic second exposures. |
+| 2 | Review parser/editor on representative media | Annotate 10–20 varied sheets; compare correction effort, proposal recall, contour quality, and latency against manual tracing. Refine defaults from results. |
 | 3 | Prove Cricut handoff with known geometry | Verify SVG size, Attach, absolute Prepare placement, loading orientation, and material settings using pen/scrap. Start before the final camera mount if practical. |
 | 4 | Calibrate and validate the production rig/stack | Establish locked lens/JPEG correction and per-image mat mapping with mount/LED fill. Measure independent references and center/edge cut alignment across at least 10 mat reloads, then cut a sticker and a sheet. |
 
-Packaging, interaction defaults, automatic irregular-region discovery, and natural-language edits should follow observed needs. All phases remain independently callable/testable. A stable placement offset may be compensable; variation between mat loads cannot be fixed with one correction. Keep the original sheet on the same mat through cutting. Synthetic fixtures never certify physical placement.
+Interaction defaults, automatic irregular-region discovery, and natural-language edits should follow observed needs. All phases remain independently callable/testable. A stable placement offset may be compensable; variation between mat loads cannot be fixed with one correction. Keep the original sheet on the same mat through cutting. Synthetic fixtures never certify physical placement.
 
 ## Proposed acceptance targets
 

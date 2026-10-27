@@ -7,6 +7,7 @@ import hashlib
 import fcntl
 import json
 import math
+import os
 from pathlib import Path
 import tempfile
 from uuid import uuid4
@@ -114,6 +115,9 @@ class RegionDocument:
             raw = path.read_bytes()
             result = cls(json.loads(raw))
             result._saved_hashes[path] = hashlib.sha256(raw).hexdigest()
+            source_path = Path(result._data["source"]["path"])
+            if not source_path.is_absolute():
+                result._data["source"]["path"] = str((path.parent / source_path).resolve())
             if verify_image:
                 result.verify_image(image)
             return result
@@ -202,7 +206,9 @@ class RegionDocument:
             current = hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
             if current != self._saved_hashes.get(path):
                 raise RegionError("Review job changed on disk. Reopen it, or save your edits to a new file.")
-            atomic_json(path, self._data)
+            serialized = self.to_dict()
+            serialized["source"]["path"] = os.path.relpath(self.source["path"], path.parent)
+            atomic_json(path, serialized)
             self._saved_hashes[path] = hashlib.sha256(path.read_bytes()).hexdigest()
 
     def fingerprint(self):

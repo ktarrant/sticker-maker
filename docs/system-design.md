@@ -21,6 +21,14 @@ The [parser/review contract](parser.md) defines implemented editing controls, ar
 
 Model proposals, editable image-space outlines, and derived millimeter paths remain separate. Edits are reversible; default to outer boundaries with explicit inner cuts. Uncalibrated review is allowed, while physical approval requires measured validation. Preview and export share one approved path snapshot; source, geometry, recipe, or calibration changes invalidate approval. Autosave detects concurrent file changes instead of overwriting another editor. The GUI composes phase APIs rather than duplicating their logic.
 
+## Runtime and transfer
+
+Use the checked-in Python 3.12 selection, `uv.lock`, and `scripts/setup-macos.sh`. Intel macOS 13+ uses Ventura-compatible gphoto2/Qt/OpenCV wheels, NumPy 1.x, and Torch 2.2.2 CPU; Apple silicon macOS 14+ retains the modern Torch/Metal stack. The [last upstream Mac x86 Torch release](https://pytorch.org/blog/pytorch2-2/) requires a deliberate override of SAM's declared Torch/torchvision floors. The installer installs runtime/build tools first and builds pinned SAM without isolation/CUDA. This compatibility path covers tested static-image inference, not training/video/compilation support. Binary gphoto2 wheels bundle native libraries.
+
+`models fetch` verifies official Small/Tiny sizes and SHA-256 before atomic publication; the adapter verifies them again before loading, including on legacy Torch. `doctor` checks imports, platform, and weights without camera access. The launcher anchors paths to the checkout and uses the installed environment unchanged. Setup generates a synthetic parsing sheet so no ignored development photo or model cache is required from the old laptop.
+
+New region files store source-image paths relative to the JSON location; absolute-path jobs remain readable with a hash-checked relocation override. `regions bundle` copies originals and verified mask assets/history into one relocatable folder. It preserves content review, increments the copy's revision, and clears physical approval; the source job is unchanged. See the [hardware handoff](hardware-validation.md) for clean installation, validation, and evidence collection.
+
 ## Capture implementation
 
 `capture.capture_image()` is the reusable entry point; `list_cameras()` and `camera_settings()` provide diagnostics. Native gphoto2 work runs in a subprocess with a whole-operation deadline. A shared process lock serializes this application's camera use across output folders; other camera applications must be closed. Failed or uncertain operations never trigger an automatic second exposure.

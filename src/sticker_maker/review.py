@@ -164,7 +164,7 @@ class ImageView(QGraphicsView):
 
 
 class ReviewWindow(QMainWindow):
-    def __init__(self, input_path=None, *, output=None):
+    def __init__(self, input_path=None, *, output=None, image=None):
         super().__init__()
         self.document = None
         self.document_path = Path(output) if output else None
@@ -267,7 +267,7 @@ class ReviewWindow(QMainWindow):
         self.poll_timer.timeout.connect(self._poll)
         self.poll_timer.start(50)
         if input_path:
-            self.open_path(Path(input_path), output=output)
+            self.open_path(Path(input_path), output=output, image=image)
         QTimer.singleShot(0, self._fit_view)
 
     def _button(self, layout, title, callback):
@@ -299,7 +299,7 @@ class ReviewWindow(QMainWindow):
         else:
             self.view.fitInView(self.view.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
-    def open_path(self, path, *, output=None):
+    def open_path(self, path, *, output=None, image=None):
         try:
             if self.tasks.pending and self.tasks.pending["op"] == "capture":
                 raise RegionError("Wait for the camera transfer to finish before opening another image.")
@@ -309,7 +309,13 @@ class ReviewWindow(QMainWindow):
             if self.tasks.pending:
                 self._cancel()
             if path.suffix.lower() == ".json":
-                document = RegionDocument.load(path)
+                document = RegionDocument.load(path, image=image, verify_image=False)
+                if image is None and not Path(document.source["path"]).exists():
+                    located, _ = QFileDialog.getOpenFileName(self, "Locate this job's original image", "", "Images (*.jpg *.jpeg *.png *.mpo *.tif *.tiff)")
+                    if not located:
+                        return
+                    image = Path(located)
+                document.verify_image(image)
                 target = path
             else:
                 document = RegionDocument.create(path)
@@ -660,8 +666,8 @@ class ReviewWindow(QMainWindow):
         super().closeEvent(event)
 
 
-def run_review(input_path=None, *, output=None):
+def run_review(input_path=None, *, output=None, image=None):
     application = QApplication.instance() or QApplication(sys.argv[:1])
-    window = ReviewWindow(input_path, output=output)
+    window = ReviewWindow(input_path, output=output, image=image)
     window.show()
     application.exec()

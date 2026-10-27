@@ -12,7 +12,7 @@ The parser, reversible editor, optional SAM selection, and approved-path SVG exp
 | OpenCV | [Contours and polygon approximation](https://docs.opencv.org/4.x/d3/dc0/group__imgproc__shape.html) supply bounded panel proposals from a smaller processing image, with transforms back to the primary raster. Interior-variation filtering reduces empty mat-grid proposals; duplicates are suppressed while useful nested alternatives remain. |
 | Shapely | Pixel-cell boundary tracing preserves holes, isolated pixels, and diagonal contacts without invalid contour repairs. [Buffers](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html), booleans, and bounded simplification produce cut paths. |
 
-SAM 2's [native MPS/CPU support](https://github.com/facebookresearch/sam2/blob/main/demo/README.md) suits this Mac. Its [optional CUDA extension](https://github.com/facebookresearch/sam2/blob/main/INSTALL.md) is disabled; the application performs its own tracing. The official revision and resolved dependencies are pinned in project metadata/`uv.lock`; jobs record checkpoint SHA-256, Torch version, device, prompts, crop, mask checksum, and timings. Weights are downloaded separately once; ordinary use is offline. Capture/calibration and edit/geometry tests do not require Torch, Qt, or OpenCV.
+SAM 2 supports native MPS/CPU. The modern stack uses Metal on Apple silicon; the Intel Ventura configuration uses locked legacy Torch on CPU, validated for this pinned image API through Rosetta. See [runtime decisions](system-design.md#runtime-and-transfer) for the build/dependency exception. CUDA is disabled; the application traces masks itself. Jobs record source revision, checkpoint SHA-256, Torch version, device, prompts, crop, mask checksum, and timings. `models fetch` downloads/verifies official weights once, and the adapter verifies them before loading. Ordinary use is offline. Capture/calibration and edit/geometry tests do not require Torch, Qt, or OpenCV.
 
 SAM 3 adds [text/exemplar selection](https://github.com/facebookresearch/sam3), but its current official setup requires CUDA and [Apple/CPU support remains an open contribution](https://github.com/facebookresearch/sam3/pull/627). Reconsider it if deployment support or project needs change. OCR could label suggestions; it does not define sticker backing. Model confidence never approves cuts.
 
@@ -63,7 +63,7 @@ Physical approval requires selected regions marked reviewed and stores the exact
 | History | Up to 40 snapshots in each undo/redo direction. Revisions increase even after undo, preventing old inference from becoming current again. |
 | Approval | Input fingerprint, exact millimeter paths/diagnostics, profile ID/mat size, snapshot fingerprint. Content review differs from physical approval. |
 
-Masks are cropped PNG assets with origins/checksums, outside inline JSON. Geometry reopens without weights/inference. Keep photos and generated jobs/assets under ignored `data/`/`output/`.
+Masks are cropped PNG assets with origins/checksums, outside inline JSON. Geometry reopens without weights/inference. Image paths are relative to the saved document; legacy paths can be hash-checked and rebound. `regions bundle` copies image/masks/history into a portable folder and clears physical approval on the copy. Keep photos and generated jobs/assets under ignored `data/`/`output/`; none is a prerequisite for a fresh clone, which can generate a software test sheet.
 
 Shared APIs outside CLI/GUI code:
 
